@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traffic Replay</title>
+<style>
+:root{
+  --bg:#f3f4f1; --panel:#ffffff; --ink:#1c2227; --muted:#66707a; --line:#e2e5e0;
+  --accent:#2f6fed; --good:#2a9d5c; --warn:#d98b0f; --bad:#d64545;
+  --grass:#dfe7d6; --block:#d3dcc9; --asphalt:#464c54; --edge:#ffffffb0; --center:#e9c24a;
+  --pill:#ffffffd9;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#13171b; --panel:#1c2228; --ink:#e7eaed; --muted:#8a95a0; --line:#2b333a;
+    --accent:#6ea0ff; --good:#46c07f; --warn:#f0b042; --bad:#ff6b6b;
+    --grass:#1d2a22; --block:#223127; --asphalt:#2c3238; --edge:#ffffff55; --center:#c9a63f;
+    --pill:#1c2228d9;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.app{max-width:1180px;margin:0 auto;padding:16px;display:grid;gap:16px;grid-template-columns:minmax(0,1fr) 330px;align-items:start}
+.app[hidden]{display:none}
+header{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+h1{margin:0;font-size:20px;font-weight:650}
+.sub{color:var(--muted);font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.card h2{margin:0 0 10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tabs{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.tabs button{border:0;background:none;color:var(--muted);padding:6px 14px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer}
+.tabs button[aria-pressed=true]{background:var(--accent);color:#fff}
+.mapwrap{position:relative;width:100%;max-width:780px;margin:0 auto;aspect-ratio:1/1;border-radius:12px;overflow:hidden;background:var(--grass)}
+canvas{display:block;width:100%;height:100%}
+.badge{position:absolute;top:10px;padding:5px 11px;border-radius:999px;font-size:13px;font-weight:600;background:var(--pill);border:1px solid var(--line)}
+#tickBadge{left:10px;font-variant-numeric:tabular-nums}
+#rushBadge{right:10px;color:var(--warn);border-color:var(--warn)}
+#rushBadge[hidden]{display:none}
+#tip{position:absolute;pointer-events:none;background:#14181cee;color:#fff;font-size:12px;padding:5px 9px;border-radius:8px;white-space:nowrap;transform:translate(12px,-120%)}
+#tip[hidden]{display:none}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px}
+.controls button,.controls select{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:9px;padding:7px 12px;cursor:pointer}
+.controls button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;min-width:84px}
+.controls input[type=range]{flex:1;min-width:140px;accent-color:var(--accent)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{background:var(--bg);border-radius:10px;padding:9px 11px}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.road{display:grid;grid-template-columns:14px 1fr auto;gap:4px 8px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.road:first-of-type{border-top:0}
+.dot{width:12px;height:12px;border-radius:50%;background:#e5484d}
+.bar{grid-column:2/4;height:5px;border-radius:3px;background:var(--bg);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .15s}
+.road .n{font-variant-numeric:tabular-nums;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th{font-weight:600;color:var(--muted);text-align:right;padding:3px 0}
+td{text-align:right;padding:5px 0}
+th:first-child,td:first-child{text-align:left}
+tr.cur td{font-weight:650;color:var(--accent)}
+tr[data-run]{cursor:pointer}
+#events{list-style:none;margin:0;padding:0;font-size:13px;max-height:170px;overflow:auto}
+#events li{padding:5px 0;border-top:1px solid var(--line)}
+#events li:first-child{border-top:0}
+#events .t{color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
+.empty{max-width:560px;margin:60px auto;padding:20px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.side{display:grid;gap:16px}
+@media (max-width:900px){.app{grid-template-columns:1fr}}
+</style>
+<script src="replay.js"></script>
+</head>
+<body>
+
+<div class="empty card" id="empty" hidden>
+  <h1>No replay found</h1>
+  <p>This page needs <code>replay.js</code> next to it. Run the C++ simulator and pick option 1 or 2, then open <code>viewer.html</code> from the same folder.</p>
+</div>
+
+<div class="app" id="app">
+  <header>
+    <div>
+      <h1>Traffic Replay</h1>
+      <div class="sub" id="meta"></div>
+    </div>
+    <div class="tabs" id="tabs" role="group" aria-label="Controller"></div>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="mapwrap" id="mapwrap">
+        <canvas id="cv"></canvas>
+        <div class="badge" id="tickBadge">Tick 0</div>
+        <div class="badge" id="rushBadge" hidden>Rush hour</div>
+        <div id="tip" hidden></div>
+      </div>
+      <div class="controls">
+        <button class="primary" id="play">Pause</button>
+        <button id="back" title="Back one tick">&larr;</button>
+        <button id="fwd" title="Forward one tick">&rarr;</button>
+        <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Timeline">
+        <select id="speed" aria-label="Speed">
+          <option value="0.5">0.5x</option>
+          <option value="1" selected>1x</option>
+          <option value="2">2x</option>
+          <option value="5">5x</option>
+          <option value="10">10x</option>
+          <option value="20">20x</option>
+        </select>
+      </div>
+    </div>
+  </main>
+
+  <aside class="side">
+    <div class="card">
+      <h2>Right now</h2>
+      <div class="stats">
+        <div class="stat"><b id="sServed">0</b><span>Vehicles cleared</span></div>
+        <div class="stat"><b id="sAvg">0.0</b><span>Average wait (ticks)</span></div>
+        <div class="stat"><b id="sMax">0</b><span>Longest wait (ticks)</span></div>
+        <div class="stat"><b id="sBlocked">0</b><span>Turned away</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Roads</h2>
+      <div id="roads"></div>
+    </div>
+    <div class="card" id="cmpCard">
+      <h2>Same traffic, different lights</h2>
+      <table><thead><tr><th>Controller</th><th>Avg wait</th><th>Cleared</th><th>Away</th></tr></thead><tbody id="cmp"></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Ambulances</h2>
+      <ul id="events"></ul>
+    </div>
+    <div class="card">
+      <h2>Legend</h2>
+      <div class="legend">
+        <span><i style="background:#4f7cff"></i>Car</span>
+        <span><i style="background:#2f3a44"></i>Bike</span>
+        <span><i style="background:#f0a23b"></i>Bus</span>
+        <span><i style="background:#fff;border:1px solid #c33"></i>Ambulance</span>
+      </div>
+      <div class="sub" style="margin-top:8px">Hover a vehicle to see its id and how long it has waited. Red tail lights mean it is standing still.</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const runs = (typeof REPLAYS !== 'undefined' && REPLAYS.length) ? REPLAYS : null;
+  if(!runs){ $('app').hidden = true; $('empty').hidden = false; return; }
+
+  // ---- Settings you can change ----
+  const TICKS_PER_SECOND = 10;       // playback speed at 1x
+  const LEFT_HAND_TRAFFIC = false;   // set to true to drive on the left
+
+  // ---- Map geometry (everything is measured in "cells") ----
+  const BOX = 1.5;                   // half the size of the junction square
+  const CELL0 = 0.75;                // distance from the junction edge to the middle of cell 0
+  const SIGN = LEFT_HAND_TRAFFIC ? -1 : 1;
+  const LANE_OFF = 0.75 * SIGN;      // sideways distance of a lane from the road's centre line
+  const OUT = [[0,-1],[1,0],[0,1],[-1,0]];  // direction each road points away from the centre: N, E, S, W
+  const LIGHT = {G:'#35c46a', Y:'#f2b632', R:'#e5484d'};
+  const CAR_COLORS = ['#4f7cff','#e86a5d','#59b88c','#9a7bd8','#f0a23b','#4cb3c8','#8b95a1','#d96fa3'];
+  const NAMES = {c:'Car', b:'Bike', B:'Bus', A:'Ambulance'};
+
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  let runIdx = 0, pos = 0, playing = true, speed = 1, lastShown = -1;
+  let colors = readColors();
+  let drawn = [];           // vehicles drawn in the last frame, used for the hover tooltip
+  let mouse = null;
+
+  const H = BOX + runs[0].laneLen + 2;     // half the width of the visible world
+
+  function readColors(){
+    const s = getComputedStyle(document.documentElement), g = n => s.getPropertyValue(n).trim();
+    return {grass:g('--grass'), block:g('--block'), asphalt:g('--asphalt'), edge:g('--edge'), center:g('--center'), pill:g('--pill'), ink:g('--ink')};
+  }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { colors = readColors(); });
+
+  const run = () => runs[runIdx];
+  const nFrames = () => run().frames.length;
+
+  // ---- Header, tabs ----
+  function setMeta(){
+    $('meta').textContent = 'Seed ' + run().seed + ' · ' + run().ticks + ' ticks';
+  }
+  if(runs.length > 1){
+    runs.forEach((r, i) => {
+      const b = document.createElement('button');
+      b.textContent = r.name; b.setAttribute('aria-pressed', i === 0);
+      b.onclick = () => { runIdx = i; [...$('tabs').children].forEach((c, j) => c.setAttribute('aria-pressed', j === i)); lastShown = -1; };
+      $('tabs').appendChild(b);
+    });
+  } else {
+    const t = document.createElement('div'); t.className = 'sub'; t.textContent = runs[0].name + ' controller';
+    $('tabs').replaceWith(t);
+    $('cmpCard').hidden = true;
+  }
+  setMeta();
+  $('scrub').max = nFrames() - 1;
+
+  // ---- Controls ----
+  function updatePlayBtn(){ $('play').textContent = playing ? 'Pause' : (pos >= nFrames() - 1 ? 'Replay' : 'Play'); }
+  $('play').onclick = () => {
+    if(!playing && pos >= nFrames() - 1) pos = 0;
+    playing = !playing; updatePlayBtn();
+  };
+  function step(d){ playing = false; pos = Math.max(0, Math.min(nFrames() - 1, Math.round(pos) + d)); updatePlayBtn(); }
+  $('back').onclick = () => step(-1);
+  $('fwd').onclick = () => step(1);
+  $('speed').onchange = e => { speed = parseFloat(e.target.value); };
+  $('scrub').oninput = e => { pos = parseFloat(e.target.value); };
+  document.addEventListener('keydown', e => {
+    if(e.target.tagName === 'SELECT') return;
+    if(e.code === 'Space'){ e.preventDefault(); $('play').click(); }
+    if(e.code === 'ArrowLeft') step(-1);
+    if(e.code === 'ArrowRight') step(1);
+  });
+
+  // ---- Canvas size ----
+  let scale = 1, dpr = 1;
+  function resize(){
+    const w = $('mapwrap').clientWidth;
+    dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(w * dpr);
+    scale = w / (2 * H);
+  }
+  new ResizeObserver(resize).observe($('mapwrap'));
+  resize();
+
+  // ---- Helpers ----
+  // World point on road r, D cells from the centre, lat cells to the side (to the driver's right).
+  function P(r, D, lat){
+    const u = OUT[r], hx = -u[0], hy = -u[1];
+    return [u[0] * D + (-hy) * lat, u[1] * D + hx * lat];
+  }
+  function poly(pts){
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+    for(let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+  }
+  function rrect(x, y, w, h, r){
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+
+  // ---- Drawing the map ----
+  function drawMap(light){
+    ctx.fillStyle = colors.grass;
+    ctx.fillRect(-H, -H, 2 * H, 2 * H);
+
+    // city blocks in the four corners
+    const g = 3.1, e = H - 0.8;
+    ctx.fillStyle = colors.block;
+    for(const sx of [-1, 1]) for(const sy of [-1, 1]){
+      rrect(sx > 0 ? g : -e, sy > 0 ? g : -e, e - g, e - g, 0.7); ctx.fill();
+    }
+
+    // roads
+    ctx.fillStyle = colors.asphalt;
+    ctx.fillRect(-H, -BOX, 2 * H, 2 * BOX);
+    ctx.fillRect(-BOX, -H, 2 * BOX, 2 * H);
+
+    for(let r = 0; r < 4; r++){
+      // road edges
+      ctx.strokeStyle = colors.edge; ctx.lineWidth = 0.07; ctx.setLineDash([]);
+      for(const side of [-1, 1]){
+        const a = P(r, BOX, side * BOX), b = P(r, H, side * BOX);
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      }
+      // centre line
+      ctx.strokeStyle = colors.center; ctx.lineWidth = 0.09; ctx.setLineDash([0.8, 0.6]);
+      const c0 = P(r, BOX + 0.2, 0), c1 = P(r, H, 0);
+      ctx.beginPath(); ctx.moveTo(c0[0], c0[1]); ctx.lineTo(c1[0], c1[1]); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // stop line coloured by the light
+      const col = LIGHT[light[r]];
+      ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 8 * dpr;
+      poly([P(r, BOX, SIGN * 0.1), P(r, BOX + 0.15, SIGN * 0.1), P(r, BOX + 0.15, SIGN * (BOX - 0.05)), P(r, BOX, SIGN * (BOX - 0.05))]);
+      ctx.fill(); ctx.shadowBlur = 0;
+
+      drawSignal(r, light[r]);
+    }
+
+    // road names
+    ctx.font = '600 0.72px system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    const names = run().roads;
+    const spots = [[BOX + 0.9, -H + 1.2, 'left'], [H - 0.6, -BOX - 1.3, 'right'], [-BOX - 0.9, H - 1.2, 'right'], [-H + 0.6, BOX + 1.3, 'left']];
+    names.forEach((n, i) => {
+      const s = spots[i], w = ctx.measureText(n).width + 0.9;
+      const x = s[2] === 'left' ? s[0] : s[0] - w;
+      ctx.fillStyle = colors.pill; rrect(x, s[1] - 0.55, w, 1.1, 0.55); ctx.fill();
+      ctx.fillStyle = colors.ink; ctx.textAlign = 'left'; ctx.fillText(n, x + 0.45, s[1] + 0.03);
+    });
+  }
+
+  function drawSignal(r, state){
+    const [x, y] = P(r, BOX + 1.4, SIGN * (BOX + 0.6));
+    ctx.fillStyle = '#12161a'; rrect(x - 0.34, y - 0.95, 0.68, 1.9, 0.25); ctx.fill();
+    const lamps = [['R', -0.58], ['Y', 0], ['G', 0.58]];
+    for(const [k, dy] of lamps){
+      const on = state === k;
+      ctx.beginPath(); ctx.arc(x, y + dy, 0.21, 0, 7);
+      ctx.fillStyle = on ? LIGHT[k] : '#2d343a';
+      if(on){ ctx.shadowColor = LIGHT[k]; ctx.shadowBlur = 14 * dpr; }
+      ctx.fill(); ctx.shadowBlur = 0;
+    }
+  }
+
+  // ---- Drawing vehicles ----
+  function drawVehicle(v, t){
+    const u = OUT[v.road], D = BOX + CELL0 + v.cell;
+    const hx = -u[0], hy = -u[1], rx = -hy, ry = hx;
+    const lat = LANE_OFF - 0.4 * v.side * SIGN;
+    const x = u[0] * D + rx * lat, y = u[1] * D + ry * lat;
+    v.x = x; v.y = y;
+
+    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.atan2(hy, hx)); ctx.globalAlpha = v.fade;
+    const tail = v.stopped ? '#ff3b3b' : '#8a2b2b';
+
+    if(v.sym === 'c'){
+      const L = 0.88, W = 0.56;
+      ctx.fillStyle = CAR_COLORS[v.id % CAR_COLORS.length]; rrect(-L/2, -W/2, L, W, 0.15); ctx.fill();
+      ctx.fillStyle = 'rgba(15,25,35,.6)';
+      rrect(0.02, -W/2 + 0.08, 0.28, W - 0.16, 0.07); ctx.fill();
+      rrect(-0.32, -W/2 + 0.09, 0.16, W - 0.18, 0.05); ctx.fill();
+      lights(L, W, tail);
+    } else if(v.sym === 'b'){
+      ctx.fillStyle = '#2f3a44'; rrect(-0.28, -0.07, 0.56, 0.14, 0.06); ctx.fill();
+      ctx.fillStyle = CAR_COLORS[(v.id * 3) % CAR_COLORS.length];
+      ctx.beginPath(); ctx.arc(-0.02, 0, 0.14, 0, 7); ctx.fill();
+      ctx.fillStyle = '#2f3a44'; ctx.fillRect(0.12, -0.17, 0.05, 0.34);
+      ctx.fillStyle = tail; ctx.fillRect(-0.31, -0.05, 0.05, 0.1);
+    } else if(v.sym === 'B'){
+      const L = 0.98, W = 0.8;
+      ctx.fillStyle = '#f0a23b'; rrect(-L/2, -W/2, L, W, 0.14); ctx.fill();
+      ctx.fillStyle = 'rgba(15,25,35,.6)';
+      for(let k = 0; k < 4; k++){ rrect(-0.38 + k * 0.2, -W/2 + 0.1, 0.15, W - 0.2, 0.04); ctx.fill(); }
+      lights(L, W, tail);
+    } else {
+      const L = 0.98, W = 0.72;
+      ctx.fillStyle = '#ffffff'; rrect(-L/2, -W/2, L, W, 0.14); ctx.fill();
+      ctx.strokeStyle = '#c9ced3'; ctx.lineWidth = 0.03; ctx.stroke();
+      ctx.fillStyle = '#d93636';
+      ctx.fillRect(-0.2, -0.07, 0.4, 0.14); ctx.fillRect(-0.07, -0.2, 0.14, 0.4);
+      const flip = Math.floor(t / 160) % 2 === 0;
+      for(const s of [-1, 1]){
+        const c = (s > 0) === flip ? '#ff3b3b' : '#3b82ff';
+        ctx.fillStyle = c; ctx.shadowColor = c; ctx.shadowBlur = 12 * dpr;
+        ctx.fillRect(0.2, s * 0.22 - 0.06, 0.1, 0.12);
+      }
+      ctx.shadowBlur = 0;
+      lights(L, W, tail);
+    }
+    ctx.restore();
+  }
+  function lights(L, W, tail){
+    ctx.fillStyle = tail; ctx.fillRect(-L/2 - 0.02, -W/2 + 0.04, 0.06, 0.1); ctx.fillRect(-L/2 - 0.02, W/2 - 0.14, 0.06, 0.1);
+    ctx.fillStyle = '#fff3c4'; ctx.fillRect(L/2 - 0.04, -W/2 + 0.05, 0.05, 0.09); ctx.fillRect(L/2 - 0.04, W/2 - 0.14, 0.05, 0.09);
+  }
+
+  // ---- Working out where every vehicle is between two ticks ----
+  const mapCache = new WeakMap();
+  function frameMap(f){
+    let m = mapCache.get(f);
+    if(!m){ m = new Map(); for(const v of f.v) m.set(v[0], v); mapCache.set(f, m); }
+    return m;
+  }
+  function vehiclesAt(p){
+    const fr = run().frames, n = fr.length;
+    const i = Math.min(Math.floor(p), n - 1), a = p - i, j = Math.min(i + 1, n - 1);
+    const out = [];
+    if(i === j){
+      for(const v of fr[i].v) out.push({id:v[0], road:v[1], cell:v[2], sym:v[3], side:v[4], wait:v[5], stopped:false, fade:1});
+      return out;
+    }
+    const cur = frameMap(fr[i]), nxt = frameMap(fr[j]);
+    for(const v of fr[j].v){
+      const prev = cur.get(v[0]);
+      const c0 = prev ? prev[2] : v[2] + 1, s0 = prev ? prev[4] : 0;
+      out.push({id:v[0], road:v[1], cell:c0 + (v[2] - c0) * a, sym:v[3], side:s0 + (v[4] - s0) * a, wait:v[5],
+                stopped: !!prev && prev[2] === v[2], fade: prev ? 1 : a});
+    }
+    for(const v of fr[i].v){
+      if(!nxt.has(v[0])) out.push({id:v[0], road:v[1], cell:v[2] - a, sym:v[3], side:0, wait:v[5], stopped:false, fade:1 - a});
+    }
+    return out;
+  }
+
+  // ---- Side panel ----
+  const roadsEl = $('roads');
+  run().roads.forEach(() => {
+    const d = document.createElement('div'); d.className = 'road';
+    d.innerHTML = '<span class="dot"></span><span class="name"></span><span class="n"></span><div class="bar"><i></i></div>';
+    roadsEl.appendChild(d);
+  });
+
+  function updatePanel(i){
+    const f = run().frames[i], s = f.s;
+    $('sServed').textContent = s[0];
+    $('sAvg').textContent = (s[0] ? s[1] / s[0] : 0).toFixed(1);
+    $('sMax').textContent = s[3];
+    $('sBlocked').textContent = s[2];
+    $('tickBadge').textContent = 'Tick ' + f.t + ' / ' + (run().ticks - 1);
+    $('rushBadge').hidden = !(f.t >= run().rush[0] && f.t < run().rush[1]);
+    $('scrub').value = i;
+
+    const counts = [0, 0, 0, 0];
+    for(const v of f.v) if(v[2] >= 0) counts[v[1]]++;
+    [...roadsEl.children].forEach((d, r) => {
+      d.querySelector('.dot').style.background = LIGHT[f.l[r]];
+      d.querySelector('.name').textContent = run().roads[r];
+      d.querySelector('.n').textContent = counts[r] + ' waiting or arriving';
+      d.querySelector('.bar i').style.width = (counts[r] / run().laneLen * 100) + '%';
+    });
+
+    if(runs.length > 1){
+      $('cmp').innerHTML = runs.map((r, k) => {
+        const q = r.frames[Math.min(i, r.frames.length - 1)].s;
+        return '<tr data-run="' + k + '"' + (k === runIdx ? ' class="cur"' : '') + '><td>' + r.name + '</td><td>' +
+               (q[0] ? q[1] / q[0] : 0).toFixed(1) + '</td><td>' + q[0] + '</td><td>' + q[2] + '</td></tr>';
+      }).join('');
+      for(const tr of $('cmp').children) tr.onclick = () => $('tabs').children[tr.dataset.run].click();
+    }
+
+    const ev = [];
+    for(let k = i; k >= 0 && ev.length < 8; k--){
+      const e = run().frames[k].e;
+      for(let m = e.length - 1; m >= 0 && ev.length < 8; m--) ev.push('<li><span class="t">' + run().frames[k].t + '</span>' + e[m] + '</li>');
+    }
+    $('events').innerHTML = ev.length ? ev.join('') : '<li class="sub">No ambulances yet.</li>';
+  }
+
+  // ---- Hover tooltip ----
+  cv.addEventListener('mousemove', e => { const b = cv.getBoundingClientRect(); mouse = {x:(e.clientX - b.left) / scale - H, y:(e.clientY - b.top) / scale - H, px:e.clientX - b.left, py:e.clientY - b.top}; });
+  cv.addEventListener('mouseleave', () => { mouse = null; $('tip').hidden = true; });
+  function updateTip(){
+    if(!mouse){ return; }
+    let best = null, bd = 0.7;
+    for(const v of drawn){ const d = Math.hypot(v.x - mouse.x, v.y - mouse.y); if(d < bd){ bd = d; best = v; } }
+    const tip = $('tip');
+    if(!best){ tip.hidden = true; return; }
+    tip.hidden = false;
+    tip.textContent = NAMES[best.sym] + ' #' + best.id + ' · waited ' + best.wait + ' ticks';
+    tip.style.left = mouse.px + 'px'; tip.style.top = mouse.py + 'px';
+  }
+
+  // ---- Main loop ----
+  let last = null;
+  function frame(now){
+    try {
+      if(last === null) last = now;                       // the first frame has no time step
+      const dt = Math.max(0, Math.min(0.25, (now - last) / 1000)); last = now;
+      if(playing){
+        pos += dt * TICKS_PER_SECOND * speed;
+        if(pos >= nFrames() - 1){ pos = nFrames() - 1; playing = false; updatePlayBtn(); }
+      }
+      pos = Math.max(0, Math.min(pos, nFrames() - 1));
+      const i = Math.floor(pos);
+      if(i !== lastShown){ updatePanel(i); lastShown = i; }
+
+      ctx.setTransform(scale * dpr, 0, 0, scale * dpr, H * scale * dpr, H * scale * dpr);
+      drawMap(run().frames[i].l);
+      drawn = vehiclesAt(pos);
+      // draw ambulances last so they stay on top
+      drawn.sort((a, b) => (a.sym === 'A') - (b.sym === 'A'));
+      for(const v of drawn) drawVehicle(v, now);
+      updateTip();
+    } catch(err){
+      showError(err);
+    }
+    requestAnimationFrame(frame);                         // always keep the loop alive
+  }
+  function showError(err){
+    let box = $('err');
+    if(!box){
+      box = document.createElement('div'); box.id = 'err'; box.className = 'card';
+      box.style.cssText = 'grid-column:1/-1;color:var(--bad);font-size:13px';
+      $('app').insertBefore(box, $('app').children[1]);
+    }
+    box.textContent = 'Viewer error: ' + err.message;
+  }
+  updatePlayBtn();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

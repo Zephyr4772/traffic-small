@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How It Works · Smart Traffic City</title>
+<style>
+  :root { --ink:#1d242b; --muted:#66717c; --line:#e3e6ea; --bg:#f6f7f9; --card:#fff; --accent:#2563eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header { position:sticky; top:0; background:rgba(255,255,255,.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); z-index:5; }
+  .bar { max-width:1000px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; }
+  .bar b { font-size:16px; }
+  .bar a { color:#fff; background:var(--accent); padding:7px 14px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; }
+  main { max-width:1000px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-size:30px; margin:8px 0 6px; }
+  h2 { font-size:21px; margin:40px 0 10px; }
+  p.lead { color:var(--muted); font-size:17px; margin:0 0 10px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin:14px 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; padding:8px 10px; border-bottom:1px solid var(--line); }
+  td { padding:10px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr:last-child td { border-bottom:0; }
+  .veh { display:inline-block; border:1.5px solid rgba(0,0,0,.6); border-radius:3px; vertical-align:middle; }
+  .flash { animation: flash .5s steps(1) infinite; }
+  @keyframes flash { 50% { background:#2d6bff !important; } }
+  .prio { display:inline-block; height:8px; border-radius:4px; background:var(--accent); vertical-align:middle; }
+  .num { font-variant-numeric:tabular-nums; font-weight:650; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; }
+  .step { display:flex; gap:12px; }
+  .step .n { flex:none; width:28px; height:28px; border-radius:50%; background:var(--accent); color:#fff; display:grid; place-items:center; font-weight:700; font-size:14px; }
+  .light { display:inline-flex; gap:5px; vertical-align:middle; background:#15191d; padding:4px 6px; border-radius:6px; }
+  .light i { width:11px; height:11px; border-radius:50%; background:#2b3036; }
+  .formula { font-family:ui-monospace,Consolas,monospace; background:#f1f3f6; border-radius:8px; padding:12px 14px; font-size:14px; overflow-x:auto; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600; }
+  .muted { color:var(--muted); }
+  ul { padding-left:20px; }
+</style>
+</head>
+<body>
+<header><div class="bar"><b>Smart Traffic City · How it works</b><a href="/">Back to the simulation</a></div></header>
+<main>
+  <h1>A traffic light that thinks</h1>
+  <p class="lead">Normal signals run on timers: every road gets the same green, whether it has fifty cars or none. This project simulates a city and a <b>smart signal</b> that decides who goes next from what is actually waiting: what kind of vehicle it is, how long it has waited, what time of day it is, and whether the road ahead has room.</p>
+
+  <h2>1 · The vehicles and their priority</h2>
+  <p>Every vehicle near a junction adds points to its road. The road with the most points gets the next green. These are the points each vehicle adds:</p>
+  <div class="card">
+    <table>
+      <thead><tr><th>Vehicle</th><th>Looks like</th><th>Priority points</th><th></th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><b>Ambulance</b></td><td><span class="veh flash" style="width:30px;height:12px;background:#ff2d2d"></span></td><td class="num">50 · overrides</td><td><span class="prio" style="width:160px;background:#e5484d"></span></td><td>Gets green almost at once (pre-emption) and may edge through a red if the junction is clear.</td></tr>
+        <tr><td><b>School bus</b></td><td><span class="veh" style="width:48px;height:14px;background:#ffb300"></span></td><td class="num">6 in school hours<br><span class="muted">2 otherwise</span></td><td><span class="prio" style="width:60px"></span></td><td>Many children on board. School hours are 7:00–9:00 and 13:30–15:30.</td></tr>
+        <tr><td><b>City bus</b></td><td><span class="veh" style="width:54px;height:14px;background:#2f7fc1"></span></td><td class="num">3</td><td><span class="prio" style="width:30px"></span></td><td>Carries many people; one bus moves more people than ten cars.</td></tr>
+        <tr><td><b>Truck</b></td><td><span class="veh" style="width:46px;height:14px;background:#d9822b"></span></td><td class="num">1.8</td><td><span class="prio" style="width:18px"></span></td><td>Big and slow to start; clearing it when there is time to spare stops it blocking others.</td></tr>
+        <tr><td><b>Car</b></td><td><span class="veh" style="width:22px;height:10px;background:#4f7cff"></span> <span class="veh" style="width:22px;height:10px;background:#e5484d"></span> <span class="veh" style="width:22px;height:10px;background:#3fa46a"></span></td><td class="num">1</td><td><span class="prio" style="width:10px"></span></td><td>The baseline. Cars come in several colours just to tell them apart.</td></tr>
+        <tr><td><b>Van</b></td><td><span class="veh" style="width:26px;height:11px;background:#eef0f2"></span></td><td class="num">1</td><td><span class="prio" style="width:10px"></span></td><td>Deliveries; treated like a car.</td></tr>
+        <tr><td><b>Auto-rickshaw</b></td><td><span class="veh" style="width:14px;height:8px;background:#e8c14a"></span></td><td class="num">1</td><td><span class="prio" style="width:10px"></span></td><td>Slow (max 45 km/h) but counts like a car.</td></tr>
+        <tr><td><b>Motorbike</b></td><td><span class="veh" style="width:10px;height:5px;background:#2f3640"></span></td><td class="num">0.6</td><td><span class="prio" style="width:6px"></span></td><td>Small and quick to clear, so it weighs less.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>2 · How the smart light decides</h2>
+  <div class="card">
+    <p style="margin-top:0">Every 0.1 seconds each junction adds up the points of the vehicles waiting on each road (within 150 m, the range of the detectors):</p>
+    <div class="formula">road score = Σ ( vehicle points × (1 + seconds waited ÷ 30) ) × road-ahead factor</div>
+    <p>The <b>waiting time</b> term makes points grow the longer a vehicle waits, so a quiet road is never forgotten. The <b>road-ahead factor</b> lowers the score if the road it would drive into is already full, because sending more cars there only blocks the junction.</p>
+  </div>
+  <div class="grid">
+    <div class="card step"><div class="n">1</div><div><b>Ambulance first.</b> If an ambulance is waiting, its road gets green after a short safe change (3 s minimum), and keeps it until the ambulance is through.</div></div>
+    <div class="card step"><div class="n">2</div><div><b>No one waits forever.</b> A green never lasts more than 60 s; after that the busiest other road must get its turn.</div></div>
+    <div class="card step"><div class="n">3</div><div><b>Switch only when it pays.</b> After at least 7 s of green, the light changes only if another road's score is clearly higher (30% more), because every change wastes about 5 s.</div></div>
+    <div class="card step"><div class="n">4</div><div><b>Change safely.</b> Every change goes <span class="light"><i></i><i style="background:#f2b632"></i><i></i></span> amber 3 s, then all-red 2 s, so the junction is empty before the next road moves.</div></div>
+  </div>
+
+  <h2>3 · Timer lights, for comparison</h2>
+  <div class="card">
+    <p style="margin-top:0">The <b>Fixed-time</b> mode is what most junctions do today: each road gets green in turn for a fixed time (24 s on main roads, 16 s on medium roads, 10 s on small streets), whether anyone is waiting or not. Switch between the two modes in the left panel to see the difference on the same traffic.</p>
+    <ul>
+      <li>Timer lights give green to empty roads and make full roads wait.</li>
+      <li>They ignore what kind of vehicle is waiting: an ambulance waits like everyone else.</li>
+      <li>The smart light reacts to real demand, so queues stay shorter.</li>
+    </ul>
+  </div>
+
+  <h2>4 · How the surroundings influence the lights</h2>
+  <div class="grid">
+    <div class="card"><b>Time of day</b><br>School buses count three times more in school hours. The clock at the top shows the simulated time.</div>
+    <div class="card"><b>Location</b><br>School buses only drive to and from schools; ambulances only between hospitals and homes. So junctions near schools and hospitals see more priority vehicles.</div>
+    <div class="card"><b>The road ahead</b><br>If the exit road is backed up, the light holds that road. Vehicles also never enter a junction they can't leave ("don't block the box").</div>
+    <div class="card"><b>Neighbouring junctions</b><br>Because a full exit road lowers a score, a jam at one junction automatically slows the flow into it from its neighbours instead of spreading.</div>
+  </div>
+
+  <h2>5 · How vehicles drive</h2>
+  <div class="card">
+    <ul style="margin:0">
+      <li><b>Left-hand traffic</b>, as in India. Turning left is the short turn; turning right crosses oncoming traffic.</li>
+      <li><b>Car-following:</b> each driver keeps a safe gap, speeds up and brakes smoothly (the Intelligent Driver Model, a standard in traffic research).</li>
+      <li><b>Lanes:</b> drivers move into the correct lane for their next turn.</li>
+      <li><b>Routes:</b> every trip has a start and a destination building and takes the quickest route (A* search), counting delays at junctions.</li>
+      <li><b>Unsignalled junctions:</b> the smaller road gives way to the bigger one; at all-way stops whoever arrived first goes first.</li>
+    </ul>
+  </div>
+
+  <h2>6 · What to look at in the simulation</h2>
+  <div class="card">
+    <ul style="margin:0">
+      <li>The <b>coloured bar</b> across each road at a junction is its light: green, amber or red.</li>
+      <li><b>Live traffic</b> (right panel): average trip time, delay, how many vehicles are standing still, and ambulance and school-bus trip times. Compare these between the two modes.</li>
+      <li>Click any vehicle to <b>follow it</b> and see where it is going and how long it has waited.</li>
+    </ul>
+  </div>
+</main>
+</body>
+</html>
